@@ -1,0 +1,117 @@
+alias: 'Amber: Revert to Self-Consumption'
+description: >-
+  Surgically returns inverter to normal operation and restores export limits
+  with two-tier SoC floor protection (55% routine peak,
+  battery_reserve_state_of_charge for major spikes)
+triggers:
+  - id: stop_spike_export
+    entity_id: sensor.amber_feed_in_price
+    below: 0.25
+    for:
+      minutes: 5
+    trigger: numeric_state
+  - id: stop_routine_peak_soc
+    entity_id: sensor.sigen_plant_battery_state_of_charge
+    below: 55
+    trigger: numeric_state
+  - id: stop_routine_peak_soc
+    entity_id: sensor.amber_feed_in_price
+    below: input_number.amber_export_trigger_price
+    for:
+      minutes: 2
+    trigger: numeric_state
+  - id: stop_spike_export
+    entity_id: sensor.sigen_plant_battery_state_of_charge
+    below: input_number.battery_reserve_state_of_charge
+    trigger: numeric_state
+  - id: stop_negative_import
+    entity_id: sensor.amber_general_price
+    above: input_number.amber_negative_soak_price
+    trigger: numeric_state
+  - id: restore_export_limit
+    entity_id: sensor.amber_feed_in_price
+    above: 0
+    for:
+      minutes: 10
+    trigger: numeric_state
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: stop_routine_peak_soc
+          - condition: state
+            entity_id: select.sigen_plant_remote_ems_control_mode
+            state: Command Discharging (ESS First)
+          - condition: numeric_state
+            entity_id: sensor.amber_feed_in_price
+            below: input_number.amber_export_trigger_price
+          - condition: numeric_state
+            entity_id: sensor.sigen_plant_battery_state_of_charge
+            below: 55
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.sigen_plant_ess_max_charging_limit
+            data:
+              value: 8
+          - action: select.select_option
+            target:
+              entity_id: select.sigen_plant_remote_ems_control_mode
+            data:
+              option: Maximum Self Consumption
+          - action: switch.turn_off
+            target:
+              entity_id: switch.sigen_plant_remote_ems_controlled_by_home_assistant
+      - conditions:
+          - condition: trigger
+            id: stop_spike_export
+          - condition: state
+            entity_id: select.sigen_plant_remote_ems_control_mode
+            state: Command Discharging (ESS First)
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.sigen_plant_ess_max_charging_limit
+            data:
+              value: 8
+          - action: select.select_option
+            target:
+              entity_id: select.sigen_plant_remote_ems_control_mode
+            data:
+              option: Maximum Self Consumption
+          - action: switch.turn_off
+            target:
+              entity_id: switch.sigen_plant_remote_ems_controlled_by_home_assistant
+      - conditions:
+          - condition: trigger
+            id: stop_negative_import
+          - condition: state
+            entity_id: select.sigen_plant_remote_ems_control_mode
+            state: Command Charging (Grid First)
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.sigen_plant_ess_max_charging_limit
+            data:
+              value: 8
+          - action: select.select_option
+            target:
+              entity_id: select.sigen_plant_remote_ems_control_mode
+            data:
+              option: Maximum Self Consumption
+          - action: switch.turn_off
+            target:
+              entity_id: switch.sigen_plant_remote_ems_controlled_by_home_assistant
+      - conditions:
+          - condition: trigger
+            id: restore_export_limit
+          - condition: numeric_state
+            entity_id: sensor.amber_feed_in_price
+            above: -0.01
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.sigen_plant_grid_export_limitation
+            data:
+              value: 5
+mode: queued
