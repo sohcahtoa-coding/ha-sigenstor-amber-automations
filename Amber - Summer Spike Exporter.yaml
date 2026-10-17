@@ -1,0 +1,71 @@
+alias: 'Amber: Summer Spike Exporter'
+description: >-
+  Two-tier battery exporter: Discharges to 55% SoC during routine evening peaks
+  (>28c) if tomorrow's solar forecast exceeds 18kWh, and down to
+  battery_reserve_state_of_charge (30%) during major spikes
+  (>amber_export_trigger_price). Immediately unlocks 5kW export limit.
+triggers:
+  - id: major_spike
+    entity_id: sensor.amber_feed_in_price
+    above: input_number.amber_export_trigger_price
+    trigger: numeric_state
+  - id: evening_peak
+    entity_id: sensor.amber_feed_in_price
+    above: 0.28
+    for:
+      minutes: 5
+    trigger: numeric_state
+  - id: evening_peak
+    trigger: time
+    at: '16:30:00'
+actions:
+  - choose:
+      - conditions:
+          - condition: numeric_state
+            entity_id: sensor.amber_feed_in_price
+            above: input_number.amber_export_trigger_price
+          - condition: numeric_state
+            entity_id: sensor.sigen_plant_battery_state_of_charge
+            above: input_number.battery_reserve_state_of_charge
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.sigen_plant_grid_export_limitation
+            data:
+              value: 5
+          - action: switch.turn_on
+            target:
+              entity_id: switch.sigen_plant_remote_ems_controlled_by_home_assistant
+          - action: select.select_option
+            target:
+              entity_id: select.sigen_plant_remote_ems_control_mode
+            data:
+              option: Command Discharging (ESS First)
+      - conditions:
+          - condition: time
+            after: '16:30:00'
+            before: '21:30:00'
+          - condition: numeric_state
+            entity_id: sensor.amber_feed_in_price
+            above: 0.28
+          - condition: numeric_state
+            entity_id: sensor.sigen_plant_battery_state_of_charge
+            above: 55
+          - condition: numeric_state
+            entity_id: sensor.energy_production_tomorrow
+            above: 18
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.sigen_plant_grid_export_limitation
+            data:
+              value: 5
+          - action: switch.turn_on
+            target:
+              entity_id: switch.sigen_plant_remote_ems_controlled_by_home_assistant
+          - action: select.select_option
+            target:
+              entity_id: select.sigen_plant_remote_ems_control_mode
+            data:
+              option: Command Discharging (ESS First)
+mode: single
