@@ -1,0 +1,102 @@
+alias: 'Amber: Morning Export Soak'
+description: >-
+  Halts battery charging to capitalise on positive export prices (>3.5c) during
+  the morning when Forecast.Solar confirms >16kWh remaining today. Safely
+  restores max charging limit and aborts if remaining solar drops below 12kWh.
+triggers:
+  - id: start_exporting
+    trigger: sun
+    event: sunrise
+  - id: start_exporting
+    entity_id: sensor.amber_feed_in_price
+    above: 0.035
+    for:
+      minutes: 10
+    trigger: numeric_state
+  - id: start_exporting
+    entity_id: sensor.sigen_plant_battery_state_of_charge
+    above: 35
+    trigger: numeric_state
+  - id: start_exporting
+    entity_id: sensor.energy_production_today_remaining
+    above: 16
+    trigger: numeric_state
+  - id: stop_exporting
+    entity_id: sensor.amber_feed_in_price
+    below: 0.025
+    for:
+      minutes: 10
+    trigger: numeric_state
+  - id: stop_exporting
+    entity_id: sensor.amber_feed_in_price
+    below: 0
+    trigger: numeric_state
+  - id: stop_exporting
+    entity_id: sensor.sigen_plant_battery_state_of_charge
+    below: input_number.battery_reserve_state_of_charge
+    trigger: numeric_state
+  - id: stop_exporting
+    entity_id: sensor.energy_production_today_remaining
+    below: 12
+    for:
+      minutes: 5
+    trigger: numeric_state
+  - id: stop_exporting
+    trigger: time
+    at: '11:30:00'
+actions:
+  - choose:
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: start_exporting
+              - condition: template
+                value_template: '{{ trigger.id is not defined }}'
+          - condition: time
+            before: '11:30:00'
+          - condition: numeric_state
+            entity_id: sensor.amber_feed_in_price
+            above: 0.035
+          - condition: numeric_state
+            entity_id: sensor.sigen_plant_battery_state_of_charge
+            above: input_number.battery_reserve_state_of_charge
+          - condition: numeric_state
+            entity_id: sensor.energy_production_today_remaining
+            above: 16
+          - condition: state
+            entity_id: switch.sigen_plant_remote_ems_controlled_by_home_assistant
+            state: 'off'
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: switch.sigen_plant_remote_ems_controlled_by_home_assistant
+          - action: select.select_option
+            target:
+              entity_id: select.sigen_plant_remote_ems_control_mode
+            data:
+              option: Maximum Self Consumption
+          - action: number.set_value
+            target:
+              entity_id: number.sigen_plant_ess_max_charging_limit
+            data:
+              value: 0
+      - conditions:
+          - condition: trigger
+            id: stop_exporting
+          - condition: state
+            entity_id: switch.sigen_plant_remote_ems_controlled_by_home_assistant
+            state: 'on'
+          - condition: state
+            entity_id: select.sigen_plant_remote_ems_control_mode
+            state: Maximum Self Consumption
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.sigen_plant_ess_max_charging_limit
+            data:
+              value: 8
+          - action: switch.turn_off
+            target:
+              entity_id: switch.sigen_plant_remote_ems_controlled_by_home_assistant
+mode: single
