@@ -1,0 +1,29 @@
+alias: 'Amber: Negative Price Importer'
+description: >-
+  Force charges battery from grid when general price drops below threshold with
+  explicit charge limit unlock
+triggers:
+  - entity_id: sensor.amber_general_price
+    below: input_number.amber_negative_soak_price
+    for:
+      minutes: 10
+    trigger: numeric_state
+conditions:
+  - condition: numeric_state
+    entity_id: sensor.sigen_plant_battery_state_of_charge
+    below: 100
+actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.sigen_plant_remote_ems_controlled_by_home_assistant
+  - action: number.set_value
+    target:
+      entity_id: number.sigen_plant_ess_max_charging_limit
+    data:
+      value: 8
+  - action: select.select_option
+    target:
+      entity_id: select.sigen_plant_remote_ems_control_mode
+    data:
+      option: Command Charging (Grid First)
+mode: single
