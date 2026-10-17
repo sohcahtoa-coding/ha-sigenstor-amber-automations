@@ -1,0 +1,15 @@
+alias: 'Amber: Negative Import Price Alert'
+description: Sends a mobile push notification when grid electricity is free or negative
+triggers:
+  - entity_id: sensor.amber_general_price
+    below: input_number.amber_negative_soak_price
+    trigger: numeric_state
+actions:
+  - action: notify.notify
+    data:
+      title: Free Electricity Alert
+      message: >-
+        Grid import is currently {{ (states('sensor.amber_general_price') |
+        float(0) * 100) | round(1) }}c/kWh. Good time to run the dishwasher,
+        washing machine, or heat pump.
+mode: single
