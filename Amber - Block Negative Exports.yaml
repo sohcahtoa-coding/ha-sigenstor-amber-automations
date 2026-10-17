@@ -1,0 +1,13 @@
+alias: 'Amber: Block Negative Exports'
+description: Clamps grid export limit to 0kW when feed-in price is negative
+triggers:
+  - entity_id: sensor.amber_feed_in_price
+    below: 0
+    trigger: numeric_state
+actions:
+  - action: number.set_value
+    target:
+      entity_id: number.sigen_plant_grid_export_limitation
+    data:
+      value: 0
+mode: single
